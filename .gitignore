@@ -40,6 +40,6 @@ out/
 .DS_Store
 
 ### properties ###
-*.yml
-*.yaml
-*.properties
+*-local.yml
+*-local.yaml
+*-local.properties
