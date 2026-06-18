@@ -42,6 +42,7 @@ dependencies {
 
     // 테스트
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test' // @DataJpaTest (Spring Boot 4.x)
     testImplementation 'io.projectreactor:reactor-test'
     runtimeOnly 'com.h2database:h2' // 테스트용
 }
