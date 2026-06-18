@@ -23,9 +23,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-aspectj'  // AOP (Spring Boot 4.x)
-    implementation 'org.springframework.retry:spring-retry:2.0.12'        // @Retryable, @Backoff
-    implementation 'org.springframework.boot:spring-boot-starter-jackson' // ObjectMapper, JsonNode
+    implementation 'org.springframework.boot:spring-boot-starter-aop'      // @Retryable 사용에 필요
     implementation 'org.springframework.boot:spring-boot-starter-webflux'  // WebClient
 
     // DB
