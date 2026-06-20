@@ -28,7 +28,9 @@ jobs:
             gradle-
 
       - name: Build & Test
-        run: ./gradlew build
+        run: |
+          chmod +x gradlew
+          ./gradlew build
         env:
           ANTHROPIC_API_KEY: dummy-key-for-ci
           DISCORD_WEBHOOK_URL: https://discord.com/api/webhooks/dummy/dummy
