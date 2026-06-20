@@ -23,13 +23,20 @@ class DigestJobTest {
     @Mock private DigestDeliveryService digestDeliveryService;
 
     @InjectMocks
-    private DigestJob digestJob;
+    private DigestService digestService;
 
     @Test
     void 오늘_이미_다이제스트_있으면_건너뜀() {
+        DailyDigest existing = mock(DailyDigest.class);
+        RawArticle article = mock(RawArticle.class);
+        when(existing.getId()).thenReturn(1L);
+        when(existing.getDomain()).thenReturn("WEB_APP");
+        when(existing.getRawArticle()).thenReturn(article);
+        when(article.getTitle()).thenReturn("기존 기사");
         when(dailyDigestRepository.existsByDigestDate(any(LocalDate.class))).thenReturn(true);
+        when(dailyDigestRepository.findTopByDigestDateOrderByIdDesc(any())).thenReturn(Optional.of(existing));
 
-        digestJob.run();
+        digestService.runFor(LocalDate.now());
 
         verify(articleSelector, never()).select(any());
         verify(digestGenerator, never()).generate(any(), any());
@@ -41,7 +48,9 @@ class DigestJobTest {
         when(dailyDigestRepository.existsByDigestDate(any())).thenReturn(false);
         when(articleSelector.select(any())).thenReturn(Optional.empty());
 
-        digestJob.run();
+        try {
+            digestService.runFor(LocalDate.now());
+        } catch (IllegalStateException ignored) {}
 
         verify(digestGenerator, never()).generate(any(), any());
         verify(digestDeliveryService, never()).deliver(any());
@@ -52,13 +61,17 @@ class DigestJobTest {
         RawArticle article = mock(RawArticle.class);
         DailyDigest digest = mock(DailyDigest.class);
         DeliveryLog deliveryLog = mock(DeliveryLog.class);
+        when(digest.getId()).thenReturn(1L);
+        when(digest.getDomain()).thenReturn("WEB_APP");
+        when(article.getTitle()).thenReturn("테스트 기사");
+        when(deliveryLog.getStatus()).thenReturn(DeliveryStatus.SUCCESS);
 
         when(dailyDigestRepository.existsByDigestDate(any())).thenReturn(false);
         when(articleSelector.select(any())).thenReturn(Optional.of(article));
         when(digestGenerator.generate(any(), any())).thenReturn(digest);
         when(digestDeliveryService.deliver(any())).thenReturn(deliveryLog);
 
-        digestJob.run();
+        digestService.runFor(LocalDate.now());
 
         verify(articleSelector).select(any());
         verify(digestGenerator).generate(eq(article), any());
@@ -74,7 +87,9 @@ class DigestJobTest {
         when(articleSelector.select(any())).thenReturn(Optional.of(article));
         when(digestGenerator.generate(any(), any())).thenThrow(new RuntimeException("API 오류"));
 
-        digestJob.run();
+        try {
+            digestService.runFor(LocalDate.now());
+        } catch (IllegalStateException ignored) {}
 
         verify(article).fail();
         verify(digestDeliveryService, never()).deliver(any());
