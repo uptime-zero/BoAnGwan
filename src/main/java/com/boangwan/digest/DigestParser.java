@@ -13,7 +13,7 @@ public class DigestParser {
 
     public ParsedDigest parse(String json) {
         try {
-            JsonNode root = objectMapper.readTree(json);
+            JsonNode root = objectMapper.readTree(stripCodeFence(json));
             String oneLiner = textOrEmpty(root, "one_liner");
             String domain = textOrEmpty(root, "domain");
             String problem = textOrEmpty(root, "problem");
@@ -25,6 +25,18 @@ public class DigestParser {
         } catch (Exception e) {
             throw new IllegalArgumentException("Claude 응답 JSON 파싱 실패: " + json, e);
         }
+    }
+
+    private String stripCodeFence(String text) {
+        String trimmed = text.trim();
+        if (trimmed.startsWith("```")) {
+            trimmed = trimmed.replaceFirst("^```[a-zA-Z]*\\s*", "");
+            int closingFence = trimmed.lastIndexOf("```");
+            if (closingFence >= 0) {
+                trimmed = trimmed.substring(0, closingFence);
+            }
+        }
+        return trimmed.trim();
     }
 
     private String textOrEmpty(JsonNode root, String field) {
