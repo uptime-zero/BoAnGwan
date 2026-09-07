@@ -11,6 +11,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -21,6 +23,7 @@ class DigestJobTest {
     @Mock private ArticleSelector articleSelector;
     @Mock private DigestGenerator digestGenerator;
     @Mock private DigestDeliveryService digestDeliveryService;
+    @Mock private ArticleStatusService articleStatusService;
 
     @InjectMocks
     private DigestService digestService;
@@ -36,22 +39,23 @@ class DigestJobTest {
         when(dailyDigestRepository.existsByDigestDate(any(LocalDate.class))).thenReturn(true);
         when(dailyDigestRepository.findTopByDigestDateOrderByIdDesc(any())).thenReturn(Optional.of(existing));
 
-        digestService.runFor(LocalDate.now());
+        DigestService.DigestResult result = digestService.runFor(LocalDate.now());
 
+        assertThat(result.deliveryStatus()).isEqualTo("ALREADY_EXISTS");
         verify(articleSelector, never()).select(any());
         verify(digestGenerator, never()).generate(any(), any());
         verify(digestDeliveryService, never()).deliver(any());
     }
 
     @Test
-    void 선정_기사_없으면_종료() {
+    void 선정_기사_없으면_NO_CANDIDATES_반환() {
         when(dailyDigestRepository.existsByDigestDate(any())).thenReturn(false);
         when(articleSelector.select(any())).thenReturn(Optional.empty());
 
-        try {
-            digestService.runFor(LocalDate.now());
-        } catch (IllegalStateException ignored) {}
+        DigestService.DigestResult result = digestService.runFor(LocalDate.now());
 
+        assertThat(result.deliveryStatus()).isEqualTo("NO_CANDIDATES");
+        assertThat(result.digestId()).isNull();
         verify(digestGenerator, never()).generate(any(), any());
         verify(digestDeliveryService, never()).deliver(any());
     }
@@ -61,9 +65,10 @@ class DigestJobTest {
         RawArticle article = mock(RawArticle.class);
         DailyDigest digest = mock(DailyDigest.class);
         DeliveryLog deliveryLog = mock(DeliveryLog.class);
+        when(article.getId()).thenReturn(1L);
+        when(article.getTitle()).thenReturn("테스트 기사");
         when(digest.getId()).thenReturn(1L);
         when(digest.getDomain()).thenReturn("WEB_APP");
-        when(article.getTitle()).thenReturn("테스트 기사");
         when(deliveryLog.getStatus()).thenReturn(DeliveryStatus.SUCCESS);
 
         when(dailyDigestRepository.existsByDigestDate(any())).thenReturn(false);
@@ -71,27 +76,31 @@ class DigestJobTest {
         when(digestGenerator.generate(any(), any())).thenReturn(digest);
         when(digestDeliveryService.deliver(any())).thenReturn(deliveryLog);
 
-        digestService.runFor(LocalDate.now());
+        DigestService.DigestResult result = digestService.runFor(LocalDate.now());
 
+        assertThat(result.deliveryStatus()).isEqualTo("SUCCESS");
         verify(articleSelector).select(any());
         verify(digestGenerator).generate(eq(article), any());
         verify(digestDeliveryService).deliver(eq(digest));
-        verify(article).summarize();
+        verify(articleStatusService).markSummarized(1L);
     }
 
     @Test
-    void Claude_요약_실패시_article_fail_처리() {
+    void Claude_요약_실패시_markFailed_호출() {
         RawArticle article = mock(RawArticle.class);
+        when(article.getId()).thenReturn(1L);
+        when(article.getTitle()).thenReturn("테스트 기사");
 
         when(dailyDigestRepository.existsByDigestDate(any())).thenReturn(false);
         when(articleSelector.select(any())).thenReturn(Optional.of(article));
         when(digestGenerator.generate(any(), any())).thenThrow(new RuntimeException("API 오류"));
 
-        try {
-            digestService.runFor(LocalDate.now());
-        } catch (IllegalStateException ignored) {}
+        assertThatThrownBy(() -> digestService.runFor(LocalDate.now()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Claude 요약 실패");
 
-        verify(article).fail();
+        verify(articleStatusService).markFailed(1L);
+        verify(articleStatusService, never()).markSummarized(any());
         verify(digestDeliveryService, never()).deliver(any());
     }
 }

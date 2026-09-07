@@ -56,4 +56,70 @@ class DigestParserTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("JSON 파싱 실패");
     }
+
+    @Test
+    void isSufficient_oneLiner_비어있음_false() {
+        String json = """
+                {
+                  "one_liner": "",
+                  "domain": "WEB_APP",
+                  "tags": [],
+                  "problem": "문제",
+                  "risk": "위험",
+                  "impact_target": "대상",
+                  "action": []
+                }
+                """;
+        assertThat(parser.parse(json).isSufficient()).isFalse();
+    }
+
+    @Test
+    void isSufficient_problem_비어있음_risk_있음_true() {
+        String json = """
+                {
+                  "one_liner": "요약",
+                  "domain": "WEB_APP",
+                  "tags": [],
+                  "problem": "",
+                  "risk": "위험",
+                  "impact_target": "대상",
+                  "action": []
+                }
+                """;
+        assertThat(parser.parse(json).isSufficient()).isTrue();
+    }
+
+    @Test
+    void isSufficient_완전한_응답_true() {
+        String json = """
+                {
+                  "one_liner": "Log4Shell 취약점",
+                  "domain": "WEB_APP",
+                  "tags": ["Log4j"],
+                  "problem": "원격 코드 실행",
+                  "risk": "공격자 임의 코드 실행",
+                  "impact_target": "Log4j 2.x",
+                  "action": ["업그레이드"]
+                }
+                """;
+        assertThat(parser.parse(json).isSufficient()).isTrue();
+    }
+
+    @Test
+    void 코드펜스_감싼_JSON_파싱_성공() {
+        String json = """
+                ```json
+                {
+                  "one_liner": "테스트",
+                  "domain": "NETWORK",
+                  "tags": [],
+                  "problem": "문제",
+                  "risk": "위험",
+                  "impact_target": "대상",
+                  "action": []
+                }
+                ```
+                """;
+        assertThat(parser.parse(json).oneLiner()).isEqualTo("테스트");
+    }
 }

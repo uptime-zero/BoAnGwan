@@ -60,5 +60,11 @@ public class DigestParser {
             String risk,
             String impactTarget,
             List<String> actions
-    ) {}
+    ) {
+        public boolean isSufficient() {
+            return oneLiner != null && !oneLiner.isBlank()
+                    && (problem != null && !problem.isBlank()
+                        || risk != null && !risk.isBlank());
+        }
+    }
 }

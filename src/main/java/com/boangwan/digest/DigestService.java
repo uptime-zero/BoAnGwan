@@ -21,29 +21,32 @@ public class DigestService {
     private final ArticleSelector articleSelector;
     private final DigestGenerator digestGenerator;
     private final DigestDeliveryService digestDeliveryService;
+    private final ArticleStatusService articleStatusService;
 
-    public record DigestResult(long digestId, String articleTitle, String domain, String deliveryStatus) {}
+    public record DigestResult(Long digestId, String articleTitle, String domain, String deliveryStatus) {}
 
     public DigestResult runFor(LocalDate date) {
         if (dailyDigestRepository.existsByDigestDate(date)) {
             log.info("{}에 이미 다이제스트가 생성되어 있습니다", date);
             DailyDigest existing = dailyDigestRepository.findTopByDigestDateOrderByIdDesc(date).orElseThrow();
-            return new DigestResult(existing.getId(), existing.getRawArticle().getTitle(), existing.getDomain(), "ALREADY_EXISTS");
+            return new DigestResult(existing.getId(), existing.getRawArticle().getTitle(),
+                    existing.getDomain(), "ALREADY_EXISTS");
         }
 
         Optional<RawArticle> selected = articleSelector.select(date);
         if (selected.isEmpty()) {
-            throw new IllegalStateException("선정 가능한 기사가 없습니다");
+            log.info("선정 가능한 기사 없음 ({})", date);
+            return new DigestResult(null, null, null, "NO_CANDIDATES");
         }
 
         RawArticle article = selected.get();
         DailyDigest digest;
         try {
             digest = digestGenerator.generate(article, date);
-            article.summarize();
+            articleStatusService.markSummarized(article.getId());
         } catch (Exception e) {
             log.error("Claude 요약 실패 [{}]: {}", article.getTitle(), e.getMessage());
-            article.fail();
+            articleStatusService.markFailed(article.getId());
             throw new IllegalStateException("Claude 요약 실패: " + e.getMessage(), e);
         }
 
@@ -55,6 +58,7 @@ public class DigestService {
             return new DigestResult(digest.getId(), article.getTitle(), digest.getDomain(), "DELIVERY_FAILED");
         }
 
-        return new DigestResult(digest.getId(), article.getTitle(), digest.getDomain(), deliveryLog.getStatus().name());
+        return new DigestResult(digest.getId(), article.getTitle(), digest.getDomain(),
+                deliveryLog.getStatus().name());
     }
 }
