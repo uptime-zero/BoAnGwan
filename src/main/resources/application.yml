@@ -43,3 +43,10 @@ schedule:
 rss:
   user-agent: "Mozilla/5.0 (compatible; SecDailyBot/1.0)"
   timeout-seconds: 10
+
+# 기사 선정 설정
+selection:
+  candidate-window-hours: 48
+  max-failed-attempts: 2
+  max-candidates-for-triage: 12
+  min-content-length: 80

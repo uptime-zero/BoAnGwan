@@ -44,6 +44,15 @@ public class RawArticle {
     @Column(nullable = false, length = 20)
     private ArticleStatus status;
 
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "last_attempt_at")
+    private LocalDateTime lastAttemptAt;
+
+    @Column(name = "skip_reason", length = 200)
+    private String skipReason;
+
     @Builder
     public RawArticle(Source source, String guid, String title, String link,
                       String description, LocalDateTime publishedAt) {
@@ -58,6 +67,8 @@ public class RawArticle {
     }
 
     public void select() {
+        this.attemptCount++;
+        this.lastAttemptAt = LocalDateTime.now();
         this.status = ArticleStatus.SELECTED;
     }
 
@@ -69,7 +80,8 @@ public class RawArticle {
         this.status = ArticleStatus.FAILED;
     }
 
-    public void skip() {
+    public void skip(String reason) {
+        this.skipReason = reason;
         this.status = ArticleStatus.SKIPPED;
     }
 }
