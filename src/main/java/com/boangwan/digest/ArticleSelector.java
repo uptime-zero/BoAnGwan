@@ -24,7 +24,7 @@ public class ArticleSelector {
             log.warn("선정할 기사가 없습니다 ({})", today);
             return Optional.empty();
         }
-        RawArticle selected = candidates.get(0);
+        RawArticle selected = candidates.getFirst();
         selected.select();
         log.info("기사 선정: [{}] {}", selected.getSource().getName(), selected.getTitle());
         return Optional.of(selected);

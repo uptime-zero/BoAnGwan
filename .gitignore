@@ -43,3 +43,6 @@ out/
 *-local.yml
 *-local.yaml
 *-local.properties
+
+## .env ###
+.env
