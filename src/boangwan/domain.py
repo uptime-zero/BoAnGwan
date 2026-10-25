@@ -9,7 +9,7 @@ from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 KST = ZoneInfo("Asia/Seoul")
 CATEGORIES = ("cloud", "application", "endpoint", "data", "ai")
@@ -73,6 +73,30 @@ class Extraction(Schema):
     urgent: bool
     urgency_quote: str = Field(max_length=1500)
     facts: list[ExtractedFact] = Field(max_length=12)
+
+    @field_validator("identifiers", mode="before")
+    @classmethod
+    def cap_identifiers(cls, value):
+        # Vendor advisories can enumerate more CVEs than the schema's index limit.
+        # Keep the strongest lookup keys instead of sending an otherwise valid
+        # article to the SQS dead-letter queue because the model returned extras.
+        if not isinstance(value, list) or len(value) <= 12:
+            return value
+        if not all(isinstance(identifier, str) for identifier in value):
+            return value
+
+        unique = []
+        seen = set()
+        for identifier in value:
+            identifier = identifier.strip()
+            normalized = identifier.casefold()
+            if identifier and normalized not in seen:
+                unique.append(identifier)
+                seen.add(normalized)
+
+        cves = [identifier for identifier in unique if identifier.upper().startswith("CVE-")]
+        other = [identifier for identifier in unique if not identifier.upper().startswith("CVE-")]
+        return (cves + other)[:12]
 
 
 class Match(Schema):
