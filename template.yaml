@@ -1,0 +1,251 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: BoAnGwan hourly security collection and daily evidence-grounded Discord briefing
+
+Parameters:
+  SecretArn:
+    Type: String
+    Description: Existing Secrets Manager secret with anthropic_api_key and discord_webhook_url
+  ScheduleState:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [ENABLED, DISABLED]
+  AiModel:
+    Type: String
+    Default: claude-haiku-5-5
+  AiRates:
+    Type: String
+    Default: '{"input":0.1,"output":0.5,"cache_write":0.125,"cache_read":0.01}'
+    Description: USD per million tokens; update together with AiModel
+  UsdKrw:
+    Type: Number
+    Default: 1400
+    MinValue: 1
+    Description: Reference conversion only, not a live exchange rate
+  AiBudgetKrw:
+    Type: Number
+    Default: 8000
+    MinValue: 1
+    Description: Soft AI warning budget; infrastructure allowance is separate
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    CodeUri: src/
+    Handler: boangwan.pipeline.handler
+    MemorySize: 512
+    Timeout: 900
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref Table
+        BODY_BUCKET: !Ref Bodies
+        ARTICLE_QUEUE: !Ref ArticleQueue
+        SECRET_ARN: !Ref SecretArn
+        AI_MODEL: !Ref AiModel
+        AI_RATES: !Ref AiRates
+        USD_KRW: !Ref UsdKrw
+        AI_BUDGET_KRW: !Ref AiBudgetKrw
+        PYTHONUNBUFFERED: '1'
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expires
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+  Bodies:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireArticleBodies
+            Status: Enabled
+            Prefix: bodies/
+            ExpirationInDays: 30
+  ArticleDeadLetter:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+  ArticleQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      VisibilityTimeout: 5400
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ArticleDeadLetter.Arn
+        maxReceiveCount: 3
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApplicationResources
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:Query]
+                Resource: !GetAtt Table.Arn
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${Bodies.Arn}/bodies/*'
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref SecretArn
+              - Effect: Allow
+                Action: [sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
+                Resource: !GetAtt ArticleQueue.Arn
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*'
+  Collector:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-collector'
+      Role: !GetAtt ExecutionRole.Arn
+      ReservedConcurrentExecutions: 1
+      Events:
+        Hourly:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0 * * * ? *)
+            ScheduleExpressionTimezone: Asia/Seoul
+            FlexibleTimeWindow: {Mode: 'OFF'}
+            State: !Ref ScheduleState
+            Input: '{"action":"collect"}'
+  Processor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-processor'
+      Role: !GetAtt ExecutionRole.Arn
+      ReservedConcurrentExecutions: 1
+      Events:
+        Articles:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ArticleQueue.Arn
+            BatchSize: 1
+  Preparer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-preparer'
+      Role: !GetAtt ExecutionRole.Arn
+      ReservedConcurrentExecutions: 1
+      Events:
+        Preparation:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0/10 8-23 * * ? *)
+            ScheduleExpressionTimezone: Asia/Seoul
+            FlexibleTimeWindow: {Mode: 'OFF'}
+            State: !Ref ScheduleState
+            Input: '{"action":"prepare"}'
+  Publisher:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-publisher'
+      Role: !GetAtt ExecutionRole.Arn
+      ReservedConcurrentExecutions: 1
+      Timeout: 180
+      Events:
+        Publication:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0/10 9-23 * * ? *)
+            ScheduleExpressionTimezone: Asia/Seoul
+            FlexibleTimeWindow: {Mode: 'OFF'}
+            State: !Ref ScheduleState
+            Input: '{"action":"publish"}'
+  CollectorLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-collector'
+      RetentionInDays: 14
+  ProcessorLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-processor'
+      RetentionInDays: 14
+  PreparerLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-preparer'
+      RetentionInDays: 14
+  PublisherLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-publisher'
+      RetentionInDays: 14
+  DeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Article processing failures require inspection/redrive
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ArticleDeadLetter.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  TableName:
+    Value: !Ref Table
+  BodyBucket:
+    Value: !Ref Bodies
+  QueueUrl:
+    Value: !Ref ArticleQueue
+  DeadLetterQueueUrl:
+    Value: !Ref ArticleDeadLetter
+  CollectorFunction:
+    Value: !Ref Collector
+  PreparerFunction:
+    Value: !Ref Preparer
+  PublisherFunction:
+    Value: !Ref Publisher

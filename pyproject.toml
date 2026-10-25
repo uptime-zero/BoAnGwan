@@ -1,0 +1,28 @@
+[project]
+name = "boangwan"
+version = "0.1.0"
+description = "Evidence-grounded daily security briefing for Discord"
+requires-python = ">=3.12"
+dependencies = [
+  "boto3>=1.35,<2",
+  "httpx>=0.28,<1",
+  "feedparser>=6.0,<7",
+  "trafilatura>=2.0,<3",
+  "beautifulsoup4>=4.12,<5",
+  "pydantic>=2.10,<3",
+  "python-dateutil>=2.9,<3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1", "moto[dynamodb,s3,sqs]>=5,<6", "cfn-lint>=1,<2"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
