@@ -67,7 +67,7 @@ uv run python scripts/delivery_status.py 2026-10-25 --close cancel --confirm-che
 
 `src/sources.json`에서 출처와 허용 호스트를 관리합니다. RSS는 기사 URL 발견에만 쓰고 기사 HTML을 따로 읽습니다. 원문 링크가 다른 도메인으로 이동하면 허용 목록을 검토해야 합니다. 목록에 없는 호스트나 사설 IP로는 요청하지 않습니다.
 
-초기 출처는 GitHub Security, Google Security, AWS Security Blog, EDPB News, Anthropic Research입니다. FTC는 직접 HTTP 요청이 거부돼 기본 비활성화했습니다. Anthropic의 팀 소개 페이지는 목록에서 제외합니다. 출처 추가 시 `check_sources.py`로 최근 원문을 확인합니다. 14일 이내 기사가 없으면 발견 수가 0일 수 있습니다.
+출처에는 GitHub Security, Google Security, AWS Security Blog, EDPB News, Anthropic Research와 국내 보안뉴스(사건·사고), 전자신문(보안), 해외 The Record, KrebsOnSecurity, BleepingComputer, SecurityWeek의 RSS가 포함됩니다. RSS에 발행일이 있으면 14일보다 오래된 항목을 링크 발견 단계에서 제외하고, 본문에서도 날짜 범위를 다시 확인합니다. HTML 목록 출처는 기사 링크를 찾은 뒤 본문 페이지에서 발행일을 확인합니다. FTC는 직접 HTTP 요청이 거부돼 기본 비활성화했습니다. Anthropic의 팀 소개 페이지는 목록에서 제외합니다. 출처 추가 시 `check_sources.py`로 최근 원문을 확인합니다. 최근 14일 이내 기사가 없으면 발견 수가 0일 수 있습니다.
 
 본문은 400~120,000자 범위이며, 발표일을 확인할 수 없거나 범위를 벗어나면 제외합니다. 문서에서 본문을 추출하지 못하면 제목/미리보기로 대체하지 않습니다. 해당 출처가 기사 일부만 제공하면서 그 사실을 표시하지 않는 경우 자동 검출이 불완전할 수 있어 출처별 표본 검토가 필요합니다.
 
