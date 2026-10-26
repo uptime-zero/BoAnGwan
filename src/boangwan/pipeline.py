@@ -123,7 +123,8 @@ def ingest(store, ai, entry: dict, at: datetime):
         """Extract the main security event, not a product advertisement.
 Use relevant=false for marketing, navigation, incomplete/paywalled text or non-security articles.
 event_key: stable lowercase English identity of the specific incident, including date/version where needed.
-identifiers: canonical CVE IDs, affected vendor/product, incident name and specific campaign identifiers.
+identifiers: at most 12 distinct canonical identifiers; prioritize CVE IDs, then affected vendor/product,
+incident name and specific campaign identifiers.
 Do not group unrelated incidents just because their vendor or product matches.
 Every fact must have an exact contiguous quote from the body. No ellipses or reconstructed quotations.
 Score impact 0..40, demonstrated threat 0..30, substantive new information 0..20.
