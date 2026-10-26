@@ -3,6 +3,12 @@
   {"id":"google","kind":"rss","url":"https://blog.google/security/rss/","hosts":["blog.google"],"enabled":true},
   {"id":"aws","kind":"rss","url":"https://aws.amazon.com/blogs/security/feed/","hosts":["aws.amazon.com"],"enabled":true},
   {"id":"edpb","kind":"rss","url":"https://www.edpb.europa.eu/feed/news_en","hosts":["www.edpb.europa.eu","edpb.europa.eu"],"enabled":true},
+  {"id":"boannews","kind":"rss","url":"https://www.boannews.com/rss/S1N2.xml","hosts":["www.boannews.com"],"enabled":true},
+  {"id":"etnews_security","kind":"rss","url":"https://rss.etnews.com/04045.xml","hosts":["rss.etnews.com","www.etnews.com"],"enabled":true},
+  {"id":"therecord","kind":"rss","url":"https://therecord.media/feed","hosts":["therecord.media"],"enabled":true},
+  {"id":"krebsonsecurity","kind":"rss","url":"https://krebsonsecurity.com/feed/","hosts":["krebsonsecurity.com"],"enabled":true},
+  {"id":"bleepingcomputer","kind":"rss","url":"https://www.bleepingcomputer.com/feed/","hosts":["www.bleepingcomputer.com"],"enabled":true},
+  {"id":"securityweek","kind":"rss","url":"https://www.securityweek.com/feed/","hosts":["www.securityweek.com"],"enabled":true},
   {"id":"ftc","kind":"html","url":"https://www.ftc.gov/news-events/news/press-releases","hosts":["www.ftc.gov"],"path":"/news-events/news/press-releases/","enabled":false},
   {"id":"anthropic","kind":"html","url":"https://www.anthropic.com/research","hosts":["www.anthropic.com"],"path":"/research/","exclude_paths":["/research/team/"],"enabled":true}
 ]
